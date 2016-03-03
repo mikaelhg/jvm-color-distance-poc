@@ -10,8 +10,6 @@ import java.util.*
 open class ColorRepository
     @Autowired constructor(val jdbcTemplate: JdbcTemplate) {
 
-    private val binSize = 1.0
-
     private val ORANGE = RGB(255, 165, 0).toLab()
 
     private val query = """
@@ -27,14 +25,15 @@ open class ColorRepository
             val id = rs.getInt("id")
             rs.getString("colorlist").split(",")
                     .filter { it.length > 0 }
-                    .map(Integer::parseInt)
-                    .map { RGB(it) }
+                    .map { RGB(it.toInt()) }
                     .forEach {
                         val delta = LAB.ciede2000(ORANGE, it.toLab())
-                        ret.add(ColorRow(id, it.toString(), delta <= 20.0, delta2000 = delta.toInt()))
+                        ret.add(ColorRow(id, it.toString(), closeEnough(delta), delta2000 = delta.toInt()))
                     }
         }
         return ret
     }
+
+    private fun closeEnough(delta: Double) = delta <= 20.0
 
 }

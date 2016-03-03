@@ -12,4 +12,3 @@ data class RGB(val r: Int, val g: Int, val b: Int) {
 
     fun toLab() = LAB.fromRGB(r, g, b, binSize)
 }
-
