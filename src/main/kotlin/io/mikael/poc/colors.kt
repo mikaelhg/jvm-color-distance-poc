@@ -31,50 +31,9 @@ package io.mikael.poc
 /**
  * From https://github.com/StanfordHCI/c3
  */
-class LAB {
+data class LAB(var L: Double = 0.toDouble(), var a: Double = 0.toDouble(), var b: Double = 0.toDouble(), var c: Int = -1) {
 
-    var L: Double = 0.toDouble()
-    var a: Double = 0.toDouble()
-    var b: Double = 0.toDouble()
-    var c = -1
-    var w: DoubleArray? = null
-    var s = -1.0
-
-    constructor(L: Double, a: Double, b: Double) {
-        this.L = L
-        this.a = a
-        this.b = b
-    }
-
-    private constructor(L: Double, a: Double, b: Double, c: Int) {
-        this.L = L
-        this.a = a
-        this.b = b
-        this.c = c
-    }
-
-    override fun toString() = "${L.toInt()},${a.toInt()},${b.toInt()}"
-
-    override fun equals(other: Any?): Boolean {
-        if (other is LAB) {
-            return L == other.L && a == other.a && b == other.b
-        } else {
-            return false
-        }
-    }
-
-    override fun hashCode(): Int {
-        val x = L.toInt()
-        val y = (a + 110).toInt()
-        val z = (b + 110).toInt()
-        return x shl 16 or (y shl 8) or z
-    }
-
-    fun copy(): LAB {
-        val x = LAB(L, a, b, c)
-        if (w != null) x.w = w!!.clone()
-        return x
-    }
+    fun copy() = LAB(L, a, b, c)
 
     fun distance(y: LAB): Double {
         val dL = L - y.L
@@ -83,7 +42,7 @@ class LAB {
         return Math.sqrt(dL * dL + da * da + db * db)
     }
 
-    fun rgb(): Int {
+    fun toRgb(): RGB {
         // first, map CIE L*a*b* to CIE XYZ
         var y = (L + 16) / 116
         var x = y + a / 500
@@ -102,6 +61,7 @@ class LAB {
         var r = 3.2404542 * x - 1.5371385 * y - 0.4985314 * z
         var g = -0.9692660 * x + 1.8760108 * y + 0.0415560 * z
         var b = 0.0556434 * x - 0.2040259 * y + 1.0572252 * z
+
         r = if (r <= 0.00304) 12.92 * r else 1.055 * Math.pow(r, 1 / 2.4) - 0.055
         g = if (g <= 0.00304) 12.92 * g else 1.055 * Math.pow(g, 1 / 2.4) - 0.055
         b = if (b <= 0.00304) 12.92 * b else 1.055 * Math.pow(b, 1 / 2.4) - 0.055
@@ -114,22 +74,10 @@ class LAB {
         var ib = Math.round(255 * b).toInt()
         ib = Math.max(0, Math.min(ib, 255))
 
-        return 0xFF0000 and (ir shl 16) or (0x00FF00 and (ig shl 8)) or (0xFF and ib)
+        return RGB(ir, ig, ib)
     }
 
-    fun hex(): String {
-        val rgb = this.rgb()
-        val r = 0xFF and (rgb shr 16)
-        val g = 0xFF and (rgb shr 8)
-        val b = 0xFF and rgb
-        var sr = Integer.toHexString(r)
-        var sg = Integer.toHexString(g)
-        var sb = Integer.toHexString(b)
-        if (sr.length < 2) sr = "0" + sr
-        if (sg.length < 2) sg = "0" + sg
-        if (sb.length < 2) sb = "0" + sb
-        return "#" + sr + sg + sb
-    }
+    fun hex() = this.toRgb().toString()
 
     companion object {
 
@@ -137,83 +85,13 @@ class LAB {
          * Maps an RGB triple to binned LAB space (D65).
          * Binning is done by *flooring* LAB values.
          */
-        fun fromRGB(ri: Int, gi: Int, bi: Int, binSize: Double): LAB {
-            // first, normalize RGB values
-            var r = ri / 255.0
-            var g = gi / 255.0
-            var b = bi / 255.0
-
-            // D65 standard referent
-            val X = 0.950470
-            val Y = 1.0
-            val Z = 1.088830
-
-            // second, map sRGB to CIE XYZ
-            r = if (r <= 0.04045) r / 12.92 else Math.pow((r + 0.055) / 1.055, 2.4)
-            g = if (g <= 0.04045) g / 12.92 else Math.pow((g + 0.055) / 1.055, 2.4)
-            b = if (b <= 0.04045) b / 12.92 else Math.pow((b + 0.055) / 1.055, 2.4)
-            var x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / X
-            var y = (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / Y
-            var z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / Z
-
-            // third, map CIE XYZ to CIE L*a*b* and return
-            x = if (x > 0.008856) Math.pow(x, 1.0 / 3) else 7.787037 * x + 4.0 / 29
-            y = if (y > 0.008856) Math.pow(y, 1.0 / 3) else 7.787037 * y + 4.0 / 29
-            z = if (z > 0.008856) Math.pow(z, 1.0 / 3) else 7.787037 * z + 4.0 / 29
-
-            var L = 116 * y - 16
-            var A = 500 * (x - y)
-            var B = 200 * (y - z)
-
-            if (binSize > 0) {
-                L = binSize * Math.floor(L / binSize)
-                A = binSize * Math.floor(A / binSize)
-                B = binSize * Math.floor(B / binSize)
-            }
-            return LAB(L, A, B)
-        }
+        fun fromRGB(ri: Int, gi: Int, bi: Int, binSize: Double) = RGB(ri, gi, bi, binSize).toXyz().toLab()
 
         /**
          * Maps an RGB triple to binned LAB space (D65).
          * Binning is done by *rounding* LAB values.
          */
-        fun fromRGBr(ri: Int, gi: Int, bi: Int, binSize: Double): LAB {
-            // first, normalize RGB values
-            var r = ri / 255.0
-            var g = gi / 255.0
-            var b = bi / 255.0
-
-            // D65 standard referent
-            val X = 0.950470
-            val Y = 1.0
-            val Z = 1.088830
-
-            // second, map sRGB to CIE XYZ
-            r = if (r <= 0.04045) r / 12.92 else Math.pow((r + 0.055) / 1.055, 2.4)
-            g = if (g <= 0.04045) g / 12.92 else Math.pow((g + 0.055) / 1.055, 2.4)
-            b = if (b <= 0.04045) b / 12.92 else Math.pow((b + 0.055) / 1.055, 2.4)
-
-            var x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / X
-            var y = (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / Y
-            var z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / Z
-
-            // third, map CIE XYZ to CIE L*a*b* and return
-            x = if (x > 0.008856) Math.pow(x, 1.0 / 3) else 7.787037 * x + 4.0 / 29
-            y = if (y > 0.008856) Math.pow(y, 1.0 / 3) else 7.787037 * y + 4.0 / 29
-            z = if (z > 0.008856) Math.pow(z, 1.0 / 3) else 7.787037 * z + 4.0 / 29
-
-            var L = 116 * y - 16
-            var A = 500 * (x - y)
-            var B = 200 * (y - z)
-
-            if (binSize > 0) {
-                L = binSize * Math.round(L / binSize)
-                A = binSize * Math.round(A / binSize)
-                B = binSize * Math.round(B / binSize)
-            }
-
-            return LAB(L, A, B)
-        }
+        fun fromRGBr(ri: Int, gi: Int, bi: Int, binSize: Double) = RGB(ri, gi, bi, binSize).toXyz().toLabRounding()
 
         fun isInRGBGamut(L: Double, A: Double, B: Double): Boolean {
             // first, map CIE L*a*b* to CIE XYZ
@@ -262,6 +140,7 @@ class LAB {
             val b2 = y.b
             val Cab2 = Math.sqrt(a2 * a2 + b2 * b2)
             val Cab = 0.5 * (Cab1 + Cab2)
+
             val G = 0.5 * (1 - Math.sqrt(Math.pow(Cab, 7.0) / (Math.pow(Cab, 7.0) + Math.pow(25.0, 7.0))))
             val ap1 = (1 + G) * a1
             val ap2 = (1 + G) * a2

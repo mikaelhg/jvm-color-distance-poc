@@ -10,7 +10,7 @@ import java.util.*
 open class ColorRepository
     @Autowired constructor(val jdbcTemplate: JdbcTemplate) {
 
-    private val ORANGE = RGB(255, 165, 0).toLab()
+    private val ORANGE = RGB(255, 165, 0).toXyz().toLab()
 
     private val query = """
         SELECT id, colorlist
@@ -27,7 +27,7 @@ open class ColorRepository
                     .filter { it.length > 0 }
                     .map { RGB(it.toInt()) }
                     .forEach {
-                        val delta = LAB.ciede2000(ORANGE, it.toLab())
+                        val delta = LAB.ciede2000(ORANGE, it.toXyz().toLab())
                         ret.add(ColorRow(id, it.toString(), closeEnough(delta), delta2000 = delta.toInt()))
                     }
         }
