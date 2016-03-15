@@ -43,25 +43,25 @@ data class RGB(val r: Int, val g: Int, val b: Int, private val binSize : Double 
         var b2 = b / 255.0
 
         // D65 standard referent
-        val X = 0.950470
-        val Y = 1.0
-        val Z = 1.088830
+        val x1 = 0.950470
+        val y1 = 1.0
+        val z1 = 1.088830
 
         // second, map sRGB to CIE XYZ
         r2 = if (r2 <= 0.04045) r2 / 12.92 else Math.pow((r2 + 0.055) / 1.055, 2.4)
         g2 = if (g2 <= 0.04045) g2 / 12.92 else Math.pow((g2 + 0.055) / 1.055, 2.4)
         b2 = if (b2 <= 0.04045) b2 / 12.92 else Math.pow((b2 + 0.055) / 1.055, 2.4)
 
-        var x = (0.4124564 * r2 + 0.3575761 * g2 + 0.1804375 * b2) / X
-        var y = (0.2126729 * r2 + 0.7151522 * g2 + 0.0721750 * b2) / Y
-        var z = (0.0193339 * r2 + 0.1191920 * g2 + 0.9503041 * b2) / Z
+        var x2 = (0.4124564 * r2 + 0.3575761 * g2 + 0.1804375 * b2) / x1
+        var y2 = (0.2126729 * r2 + 0.7151522 * g2 + 0.0721750 * b2) / y1
+        var z2 = (0.0193339 * r2 + 0.1191920 * g2 + 0.9503041 * b2) / z1
 
         // third, map CIE XYZ to CIE L*a*b* and return
-        x = if (x > 0.008856) Math.pow(x, 1.0 / 3) else 7.787037 * x + 4.0 / 29
-        y = if (y > 0.008856) Math.pow(y, 1.0 / 3) else 7.787037 * y + 4.0 / 29
-        z = if (z > 0.008856) Math.pow(z, 1.0 / 3) else 7.787037 * z + 4.0 / 29
+        x2 = if (x2 > 0.008856) Math.pow(x2, 1.0 / 3) else 7.787037 * x2 + 4.0 / 29
+        y2 = if (y2 > 0.008856) Math.pow(y2, 1.0 / 3) else 7.787037 * y2 + 4.0 / 29
+        z2 = if (z2 > 0.008856) Math.pow(z2, 1.0 / 3) else 7.787037 * z2 + 4.0 / 29
 
-        return XYZ(x, y, z, binSize)
+        return XYZ(x2, y2, z2, binSize)
     }
 
 }
@@ -73,17 +73,17 @@ data class XYZ(val x: Double, val y: Double, val z: Double, private val binSize 
     fun toLabRounding() : LAB = toLabGeneral { Math.round(it).toDouble() }
 
     fun toLabGeneral(method: (Double) -> Double) : LAB {
-        var L = 116 * y - 16
-        var A = 500 * (x - y)
-        var B = 200 * (y - z)
+        var l = 116 * y - 16
+        var a = 500 * (x - y)
+        var b = 200 * (y - z)
 
         if (binSize > 0) {
-            L = binSize * method(L / binSize)
-            A = binSize * method(A / binSize)
-            B = binSize * method(B / binSize)
+            l = binSize * method(l / binSize)
+            a = binSize * method(a / binSize)
+            b = binSize * method(b / binSize)
         }
 
-        return LAB(L, A, B)
+        return LAB(l, a, b)
     }
 
 }
@@ -91,12 +91,12 @@ data class XYZ(val x: Double, val y: Double, val z: Double, private val binSize 
 /**
  * From https://github.com/StanfordHCI/c3
  */
-data class LAB(var L: Double = 0.toDouble(), var a: Double = 0.toDouble(), var b: Double = 0.toDouble(), var c: Int = -1) {
+data class LAB(var l: Double = 0.toDouble(), var a: Double = 0.toDouble(), var b: Double = 0.toDouble(), var c: Int = -1) {
 
-    fun copy() = LAB(L, a, b, c)
+    fun copy() = LAB(l, a, b, c)
 
     fun distance(y: LAB): Double {
-        val dL = L - y.L
+        val dL = l - y.l
         val da = a - y.a
         val db = b - y.b
         return Math.sqrt(dL * dL + da * da + db * db)
@@ -104,7 +104,7 @@ data class LAB(var L: Double = 0.toDouble(), var a: Double = 0.toDouble(), var b
 
     fun toRgb(): RGB {
         // first, map CIE L*a*b* to CIE XYZ
-        var y = (L + 16) / 116
+        var y = (l + 16) / 116
         var x = y + a / 500
         var z = y - b / 200
 
@@ -180,9 +180,11 @@ data class LAB(var L: Double = 0.toDouble(), var a: Double = 0.toDouble(), var b
             return !(r < 0 || r > 1 || g < 0 || g > 1 || b < 0 || b > 1)
         }
 
+        /**
+         * Adapted from Sharma et al's MATLAB implementation at
+         * http://www.ece.rochester.edu/~gsharma/ciede2000/
+         */
         fun ciede2000(x: LAB, y: LAB): Double {
-            // adapted from Sharma et al's MATLAB implementation at
-            //  http://www.ece.rochester.edu/~gsharma/ciede2000/
 
             // parametric factors, use defaults
             val kl = 1.0
@@ -191,14 +193,16 @@ data class LAB(var L: Double = 0.toDouble(), var a: Double = 0.toDouble(), var b
 
             // compute terms
             val pi = Math.PI
-            val L1 = x.L
+            val L1 = x.l
             val a1 = x.a
             val b1 = x.b
             val Cab1 = Math.sqrt(a1 * a1 + b1 * b1)
-            val L2 = y.L
+
+            val L2 = y.l
             val a2 = y.a
             val b2 = y.b
             val Cab2 = Math.sqrt(a2 * a2 + b2 * b2)
+
             val Cab = 0.5 * (Cab1 + Cab2)
 
             val G = 0.5 * (1 - Math.sqrt(Math.pow(Cab, 7.0) / (Math.pow(Cab, 7.0) + Math.pow(25.0, 7.0))))
@@ -232,9 +236,11 @@ data class LAB(var L: Double = 0.toDouble(), var a: Double = 0.toDouble(), var b
             val Cp = 0.5 * (Cp1 + Cp2)
 
             // Average Hue Computation
+
             // This is equivalent to that in the paper but simpler programmatically.
             // Average hue is computed in radians and converted to degrees where needed
             var hp = 0.5 * (hp1 + hp2)
+
             // Identify positions for which abs hue diff exceeds 180 degrees
             if (Math.abs(hp1 - hp2) > pi) hp -= pi
             if (hp < 0) hp += 2 * pi
